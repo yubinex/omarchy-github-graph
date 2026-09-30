@@ -1,0 +1,130 @@
+#!/usr/bin/env python3
+"""Render your GitHub contribution graph as an Omarchy wallpaper, themed from the current colors.toml.
+
+Usage: omarchy-github-graph [--set | --if-active | --toggle]
+  --set        switch the background to the rendered image
+  --if-active  only re-apply if the current background is already the contribution graph
+  --toggle     switch between the graph and whatever background was showing before it
+"""
+import json, os, subprocess, sys, tomllib
+from datetime import date
+from pathlib import Path
+from PIL import Image, ImageDraw, ImageFont
+
+W, H = 3840, 2160  # 16:9; cover-scaling on ultrawide only crops empty top/bottom
+STATE = Path.home() / ".local/state/omarchy/current"
+FILENAME = "github-contributions.png"
+PREVIOUS = Path.home() / ".local/state/omarchy-github-graph/previous"
+FONT = "/usr/share/fonts/TTF/JetBrainsMonoNerdFont-Regular.ttf"
+FONT_BOLD = "/usr/share/fonts/TTF/JetBrainsMonoNerdFont-Bold.ttf"
+LEVELS = ["NONE", "FIRST_QUARTILE", "SECOND_QUARTILE", "THIRD_QUARTILE", "FOURTH_QUARTILE"]
+
+QUERY = """query { viewer { login contributionsCollection { contributionCalendar {
+  totalContributions weeks { contributionDays { date weekday contributionCount contributionLevel } } } } } }"""
+
+
+def hex_rgb(h):
+    h = h.lstrip("#")
+    return tuple(int(h[i:i + 2], 16) for i in (0, 2, 4))
+
+
+def mix(a, b, t):
+    return tuple(round(x + (y - x) * t) for x, y in zip(a, b))
+
+
+def fetch():
+    try:
+        out = subprocess.run(["gh", "api", "graphql", "-f", f"query={QUERY}"],
+                             capture_output=True, text=True, check=True).stdout
+    except FileNotFoundError:
+        sys.exit("omarchy-github-graph: gh not found; install github-cli and run `gh auth login`")
+    except subprocess.CalledProcessError as e:
+        sys.exit(f"omarchy-github-graph: gh api failed: {e.stderr.strip()}")
+    viewer = json.loads(out[out.index("{"):])["data"]["viewer"]  # skip mise shim chatter
+    return viewer["login"], viewer["contributionsCollection"]["contributionCalendar"]
+
+
+def render(login, cal, colors, path):
+    bg = hex_rgb(colors["background"])
+    fg = hex_rgb(colors.get("foreground", "#cccccc"))
+    muted = hex_rgb(colors.get("muted", colors.get("lighter_background", "#444444")))
+    empty = hex_rgb(colors.get("lighter_background", colors.get("selection", "#333333")))
+    hot = hex_rgb(colors.get("bright_green", colors.get("green", colors.get("accent"))))
+    palette = [empty] + [mix(empty, hot, t) for t in (0.3, 0.55, 0.8, 1.0)]
+
+    img = Image.new("RGB", (W, H), bg)
+    d = ImageDraw.Draw(img)
+
+    weeks = cal["weeks"]
+    cell, gap = 36, 9
+    step = cell + gap
+    grid_w = len(weeks) * step - gap
+    grid_h = 7 * step - gap
+    x0 = (W - grid_w) // 2
+    y0 = (H - grid_h) // 2 + 40
+
+    title = ImageFont.truetype(FONT_BOLD, 56)
+    small = ImageFont.truetype(FONT, 30)
+
+    d.text((x0, y0 - 150), f"@{login}", font=title, fill=fg)
+    d.text((x0, y0 - 80), f"{cal['totalContributions']} contributions in the last year",
+           font=small, fill=muted)
+
+    last_month = None
+    for wi, week in enumerate(weeks):
+        for day in week["contributionDays"]:
+            x = x0 + wi * step
+            y = y0 + day["weekday"] * step
+            color = palette[LEVELS.index(day["contributionLevel"])]
+            d.rounded_rectangle((x, y, x + cell, y + cell), radius=7, fill=color)
+        month = date.fromisoformat(week["contributionDays"][0]["date"]).strftime("%b")
+        if month != last_month and wi < len(weeks) - 2:
+            if last_month is not None or week["contributionDays"][0]["date"][8:] <= "07":
+                d.text((x0 + wi * step, y0 + grid_h + 24), month, font=small, fill=muted)
+            last_month = month
+
+    # Legend
+    lx = x0 + grid_w - 5 * step - 110
+    ly = y0 + grid_h + 100
+    d.text((lx - 90, ly), "Less", font=small, fill=muted)
+    for i, c in enumerate(palette):
+        d.rounded_rectangle((lx + i * step, ly + 2, lx + i * step + cell, ly + 2 + cell), radius=7, fill=c)
+    d.text((lx + 5 * step + 12, ly), "More", font=small, fill=muted)
+
+    tmp = path.with_suffix(".tmp.png")
+    img.save(tmp)
+    tmp.replace(path)
+
+
+def main():
+    theme = (STATE / "theme.name").read_text().strip()
+    colors = tomllib.loads((STATE / "theme/colors.toml").read_text())
+    out_dir = Path.home() / ".config/omarchy/backgrounds" / theme
+    out_dir.mkdir(parents=True, exist_ok=True)
+    path = out_dir / FILENAME
+
+    link = STATE / "background"
+    active = link.is_symlink() and os.readlink(link).endswith(FILENAME)
+
+    if "--toggle" in sys.argv:
+        if active:
+            prev = PREVIOUS.read_text().strip() if PREVIOUS.exists() else ""
+            if prev and Path(prev).is_file():
+                subprocess.run(["omarchy-theme-bg-set", prev], check=False)
+            else:
+                subprocess.run(["omarchy-theme-bg-next"], check=False)
+            return
+        PREVIOUS.parent.mkdir(parents=True, exist_ok=True)
+        if link.exists():
+            PREVIOUS.write_text(os.path.realpath(link))
+        sys.argv.append("--set")
+
+    login, cal = fetch()
+    render(login, cal, colors, path)
+    print(path)
+    if "--set" in sys.argv or ("--if-active" in sys.argv and active):
+        subprocess.run(["omarchy-theme-bg-set", str(path)], check=False)
+
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "id": "yubinex.github-graph",
+  "name": "GitHub Graph Wallpaper",
+  "version": "1.0.0",
+  "author": "yubinex",
+  "description": "Renders your GitHub contribution graph as an Omarchy wallpaper in the current theme's colors and keeps it up to date.",
+  "license": "MIT",
+  "kinds": ["service"],
+  "keepLoaded": true,
+  "entryPoints": {
+    "service": "Service.qml"
+  }
+}

@@ -48,10 +48,12 @@ Item {
     onTriggered: root.refresh()
   }
 
-  // A login shell so gh is found the same way it is in a terminal (mise shims, ~/.local/bin).
+  // A login shell so gh is found the same way it is in a terminal (mise shims,
+  // ~/.local/bin). The system Python is used explicitly: python-pillow is a
+  // system package, and a mise-managed python3 on PATH wouldn't have it.
   Process {
     id: renderProcess
-    command: ["bash", "-lc", "exec python3 \"$0\" --if-active", root.scriptPath]
+    command: ["bash", "-lc", "exec /usr/bin/python3 \"$0\" --if-active", root.scriptPath]
     stderr: SplitParser {
       onRead: data => console.warn(root.moduleName + ": " + data)
     }

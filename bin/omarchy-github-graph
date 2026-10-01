@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/python3
 """Render your GitHub contribution graph as an Omarchy wallpaper, themed from the current colors.toml.
 
 Usage: omarchy-github-graph [--set | --if-active | --toggle]
@@ -9,7 +9,12 @@ Usage: omarchy-github-graph [--set | --if-active | --toggle]
 import json, os, subprocess, sys, tomllib
 from datetime import date
 from pathlib import Path
-from PIL import Image, ImageDraw, ImageFont
+
+try:
+    from PIL import Image, ImageDraw, ImageFont
+except ImportError:
+    sys.exit(f"omarchy-github-graph: Pillow is missing for {sys.executable}; "
+             "install it with `omarchy pkg add python-pillow`")
 
 W, H = 3840, 2160  # 16:9; cover-scaling on ultrawide only crops empty top/bottom
 STATE = Path.home() / ".local/state/omarchy/current"

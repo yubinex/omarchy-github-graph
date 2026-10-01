@@ -9,13 +9,27 @@ replaces a wallpaper you picked.
 
 ## Requirements
 
-- [GitHub CLI](https://cli.github.com/), signed in with `gh auth login`
-- `python-pillow`
+- The [GitHub CLI](https://cli.github.com/), signed in. The graph is fetched
+  with `gh api graphql` as the signed-in account, so it shows that account's
+  contributions.
+- [Pillow](https://python-pillow.org/) for the system Python (`/usr/bin/python3`),
+  from the `python-pillow` package. A Python from mise, pyenv or a virtualenv
+  isn't used, so `pip install pillow` there won't help.
 - JetBrainsMono Nerd Font (included with Omarchy)
 
 ## Installation
 
-Install and enable the plugin with Omarchy:
+Install the dependencies and sign in to GitHub:
+
+```bash
+omarchy pkg add github-cli python-pillow
+gh auth login
+```
+
+Check that `gh auth status` reports you as logged in. The plugin runs in the
+background and can't prompt for a login.
+
+Then install and enable the plugin with Omarchy:
 
 ```bash
 omarchy plugin add https://github.com/yubinex/omarchy-github-graph.git --enable
@@ -47,6 +61,26 @@ The script can also be run directly:
 | `--set` | Render and switch to the graph |
 | `--toggle` | Switch between the graph and the background shown before it |
 | `--if-active` | Render, and re-apply only if the graph is already the background |
+
+## Troubleshooting
+
+If the graph never appears, run the script by hand. It prints the reason:
+
+```bash
+~/.config/omarchy/plugins/yubinex.github-graph/bin/omarchy-github-graph --set
+```
+
+| Message | Fix |
+| --- | --- |
+| `Pillow is missing` | `omarchy pkg add python-pillow` |
+| `gh not found` | `omarchy pkg add github-cli`, then `gh auth login` |
+| `gh api failed: …` (e.g. `Bad credentials`) | Check `gh auth status`, then sign in again with `gh auth login` |
+
+The background service writes the same messages to the shell log:
+
+```bash
+journalctl --user -t omarchy-shell | grep github-graph
+```
 
 ## License
 

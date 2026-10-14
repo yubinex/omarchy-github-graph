@@ -3,9 +3,15 @@
 An Omarchy service plugin that turns your GitHub contribution graph into a
 wallpaper, drawn in the colors of your current theme.
 
-It redraws the graph every hour and whenever you switch themes. It only
-re-applies the image while the graph is your current background, so it never
-replaces a wallpaper you picked.
+While the graph is your current background, it checks GitHub every 15 minutes
+and shortly after login or a theme switch. It only redraws and re-applies the
+image when the contribution data or theme colors change (or the image is
+missing or the renderer was updated). No GitHub requests are made by the
+service while another wallpaper is selected.
+
+Updates are automatic, not instant: GitHub may take time to publish new
+contributions. Failed requests leave the existing wallpaper in place and are
+retried at the next check; requests time out after 60 seconds.
 
 ## Requirements
 
@@ -60,7 +66,11 @@ The script can also be run directly:
 | --- | --- |
 | `--set` | Render and switch to the graph |
 | `--toggle` | Switch between the graph and the background shown before it |
-| `--if-active` | Render, and re-apply only if the graph is already the background |
+| `--if-active` | Check only while the graph is active; redraw and apply only when needed |
+
+`--set` and toggling the graph on always fetch and render, bypassing the
+unchanged-data check. The service stores a small `.sha256` file alongside the
+image to track its rendering inputs.
 
 ## Troubleshooting
 
